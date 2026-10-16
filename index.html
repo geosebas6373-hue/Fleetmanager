@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Οχήματα">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#1565C0">
+<link rel="apple-touch-icon" id="touchIcon" href="">
+<title>Εργασίες Οχήματος</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: #F2F4F7; color: #1B1F23;
+         padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 22px; margin: 8px 0 14px; }
+  h2 { font-size: 17px; margin: 0 0 8px; }
+  .card { background: #fff; border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+  .card.due { background: #FFEBEE; }
+  .btn { display: block; width: 100%; padding: 14px; font-size: 17px; border: 0; border-radius: 12px; background: #1565C0; color: #fff; margin-top: 10px; font-weight: 600; }
+  .btn.secondary { background: #E3E8EF; color: #1B1F23; }
+  .btn.green { background: #2E7D32; }
+  .btn:disabled { opacity: .5; }
+  label { display: block; font-size: 14px; color: #555; margin: 12px 0 4px; }
+  input[type=text], input[type=url], input[type=number], input[type=date], select {
+    width: 100%; font-size: 17px; padding: 12px; border: 1px solid #C5CCD6; border-radius: 10px; background: #fff; }
+  .muted { color: #666; font-size: 14px; }
+  .due-text { color: #C62828; font-weight: 600; }
+  .status { margin-top: 10px; font-size: 14px; color: #555; min-height: 18px; }
+  .truckPhoto { width: 100%; max-height: 190px; object-fit: contain; background: #fff; border-radius: 12px; margin-bottom: 10px; display: none; }
+  .plate { font-size: 28px; font-weight: 700; }
+  .back { color: #1565C0; font-size: 17px; padding: 6px 0 10px; display: inline-block; cursor: pointer; }
+  .preview { width: 100%; max-height: 240px; object-fit: contain; border-radius: 10px; margin-top: 10px; display: none; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ΡΥΘΜΙΣΕΙΣ -->
+  <div id="view-setup" class="hidden">
+    <h1>Ρυθμίσεις σύνδεσης</h1>
+    <div class="card">
+      <p class="muted">Τα στοιχεία αυτά τα δίνει ο υπεύθυνος του στόλου. Συνήθως δεν χρειάζεται να τα γράψεις: ανοίγεις τον ειδικό σύνδεσμο που σου έστειλε και συμπληρώνονται μόνα τους.</p>
+      <label>Firebase Database URL</label>
+      <input type="url" id="setupUrl" placeholder="https://....firebaseio.com" autocapitalize="off" autocorrect="off">
+      <label>Firebase Web API Key</label>
+      <input type="text" id="setupKey" placeholder="AIza..." autocapitalize="off" autocorrect="off">
+      <button class="btn" id="setupSave">Αποθήκευση</button>
+      <button class="btn secondary hidden" id="setupCancel">Πίσω</button>
+    </div>
+  </div>
+
+  <!-- ΕΠΙΛΟΓΗ ΟΧΗΜΑΤΟΣ -->
+  <div id="view-select" class="hidden">
+    <h1>Επίλεξε το όχημά σου</h1>
+    <div class="card">
+      <label>Όχημα</label>
+      <select id="truckSelect"></select>
+      <button class="btn" id="truckLock">Συνέχεια</button>
+      <button class="btn secondary" id="truckRefresh">Ανανέωση λίστας</button>
+      <button class="btn secondary" id="truckSettings">Ρυθμίσεις σύνδεσης</button>
+      <div class="status" id="selectStatus"></div>
+    </div>
+  </div>
+
+  <!-- ΑΡΧΙΚΗ -->
+  <div id="view-home" class="hidden">
+    <img class="truckPhoto" id="homePhoto" alt="">
+    <div class="plate" id="homePlate"></div>
+    <div class="muted" id="homeDriver" style="margin-bottom:10px"></div>
+    <button class="btn" id="homeTasks">Εργασίες</button>
+    <button class="btn" id="homeKm">Καταχώρηση Χιλιομέτρων</button>
+    <button class="btn secondary" id="homeChange">Αλλαγή Οχήματος</button>
+    <button class="btn secondary" id="homeSettings">Ρυθμίσεις σύνδεσης</button>
+  </div>
+
+  <!-- ΕΡΓΑΣΙΕΣ -->
+  <div id="view-tasks" class="hidden">
+    <span class="back" data-go="home">‹ Πίσω</span>
+    <h1>Εργασίες</h1>
+    <div id="tasksList"></div>
+    <div class="muted" id="tasksEmpty" style="display:none">Δεν υπάρχουν προγραμματισμένες εργασίες.</div>
+    <button class="btn secondary" id="tasksRefresh">Ανανέωση</button>
+    <div class="status" id="tasksStatus"></div>
+  </div>
+
+  <!-- ΑΝΑΦΟΡΑ ΕΡΓΑΣΙΑΣ -->
+  <div id="view-report" class="hidden">
+    <span class="back" data-go="tasks">‹ Πίσω</span>
+    <h1>Πραγματοποιήθηκε</h1>
+    <div class="card">
+      <h2 id="reportDesc"></h2>
+
+      <div id="reportKmBlock" class="hidden">
+        <label>Τρέχοντα χιλιόμετρα</label>
+        <input type="number" inputmode="numeric" id="reportKm" placeholder="π.χ. 152340">
+      </div>
+
+      <div id="reportDocBlock" class="hidden">
+        <label>Φωτογραφία εγγράφου (προαιρετικά)</label>
+        <input type="file" accept="image/*" capture="environment" id="reportPhoto">
+        <img class="preview" id="reportPreview" alt="">
+        <label>Ημερομηνία λήξης που αναγράφεται (αν υπάρχει)</label>
+        <input type="date" id="reportExpiry">
+      </div>
+
+      <button class="btn green" id="reportSend">Αποστολή</button>
+      <div class="status" id="reportStatus"></div>
+    </div>
+  </div>
+
+  <!-- ΧΙΛΙΟΜΕΤΡΑ -->
+  <div id="view-km" class="hidden">
+    <span class="back" data-go="home">‹ Πίσω</span>
+    <h1>Χιλιόμετρα</h1>
+    <div class="card">
+      <label>Τρέχοντα χιλιόμετρα του οχήματος</label>
+      <input type="number" inputmode="numeric" id="kmValue" placeholder="π.χ. 152340">
+      <button class="btn green" id="kmSend">Αποστολή</button>
+      <div class="status" id="kmStatus"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+(function () {
+  var APP_VERSION = "web-1.0";
+  var LS = window.localStorage;
+
+  function $(id) { return document.getElementById(id); }
+  function lsGet(k) { try { return LS.getItem(k) || ""; } catch (e) { return ""; } }
+  function lsSet(k, v) { try { LS.setItem(k, v); } catch (e) {} }
+  function lsDel(k) { try { LS.removeItem(k); } catch (e) {} }
+
+  // ---------------------------------------------------------------- Ρυθμίσεις / σύνδεσμος ρύθμισης
+  // Ειδικός σύνδεσμος:  https://.../index.html#u=<DatabaseURL>&k=<WebApiKey>
+  (function readHashConfig() {
+    var h = (location.hash || "").replace(/^#/, "");
+    if (!h) return;
+    var p = {};
+    h.split("&").forEach(function (kv) {
+      var i = kv.indexOf("=");
+      if (i > 0) p[kv.substring(0, i)] = decodeURIComponent(kv.substring(i + 1));
+    });
+    if (p.u) lsSet("fbUrl", p.u.replace(/\/+$/, ""));
+    if (p.k) lsSet("apiKey", p.k);
+    try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+  })();
+
+  function baseUrl() { return lsGet("fbUrl").replace(/\/+$/, ""); }
+  function apiKey() { return lsGet("apiKey"); }
+  function truckId() { return lsGet("truckId"); }
+
+  // ---------------------------------------------------------------- Εικονίδιο αρχικής οθόνης (παράγεται εδώ)
+  (function makeIcon() {
+    try {
+      var c = document.createElement("canvas");
+      c.width = 180; c.height = 180;
+      var g = c.getContext("2d");
+      g.fillStyle = "#1565C0";
+      g.fillRect(0, 0, 180, 180);
+      g.font = "104px -apple-system, Arial";
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.fillText("🚚", 90, 98);
+      $("touchIcon").href = c.toDataURL("image/png");
+    } catch (e) {}
+  })();
+
+  // ---------------------------------------------------------------- Firebase (REST, χωρίς SDK)
+  var token = null, tokenExpiry = 0;
+
+  function getToken() {
+    var now = Date.now();
+    if (token && now < tokenExpiry) return Promise.resolve(token);
+    if (!apiKey()) return Promise.resolve(null);
+    return fetch("https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=" + encodeURIComponent(apiKey()), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ returnSecureToken: true })
+    }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.idToken) return null;
+        token = j.idToken;
+        var sec = parseInt(j.expiresIn || "3600", 10) || 3600;
+        tokenExpiry = now + Math.max(60, sec - 120) * 1000;
+        return token;
+      })
+      .catch(function () { return null; });
+  }
+
+  function urlFor(path) {
+    return getToken().then(function (t) {
+      return baseUrl() + "/" + path + ".json" + (t ? "?auth=" + encodeURIComponent(t) : "");
+    });
+  }
+
+  function fbGet(path) {
+    return urlFor(path).then(function (u) { return fetch(u); })
+      .then(function (r) { return r.ok ? r.json() : undefined; })
+      .catch(function () { return undefined; });
+  }
+  function fbPut(path, obj) {
+    return urlFor(path).then(function (u) {
+      return fetch(u, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(obj) });
+    }).then(function (r) { return r.ok; }).catch(function () { return false; });
+  }
+  function fbDelete(path) {
+    return urlFor(path).then(function (u) { return fetch(u, { method: "DELETE" }); })
+      .then(function (r) { return r.ok; }).catch(function () { return false; });
+  }
+
+  // Πραγματικού χρόνου (Server-Sent Events). Η onChange καλείται σε κάθε ΑΛΛΑΓΗ (όχι στην αρχική κατάσταση).
+  var streams = {};
+  function watch(name, path, onChange) {
+    unwatch(name);
+    var entry = { es: null, closed: false, timer: null };
+    streams[name] = entry;
+    function open() {
+      if (entry.closed) return;
+      urlFor(path).then(function (u) {
+        if (entry.closed) return;
+        var es = new EventSource(u);
+        entry.es = es;
+        var first = true;
+        function handler() { if (first) { first = false; return; } onChange(); }
+        es.addEventListener("put", handler);
+        es.addEventListener("patch", handler);
+        es.onerror = function () {
+          try { es.close(); } catch (e) {}
+          if (!entry.closed) entry.timer = setTimeout(open, 8000);
+        };
+        // Ανανέωση σύνδεσης κάθε 50 λεπτά, πριν λήξει το token
+        entry.timer = setTimeout(function () { try { es.close(); } catch (e) {} open(); }, 50 * 60 * 1000);
+      });
+    }
+    open();
+  }
+  function unwatch(name) {
+    var e = streams[name];
+    if (!e) return;
+    e.closed = true;
+    if (e.timer) clearTimeout(e.timer);
+    try { if (e.es) e.es.close(); } catch (x) {}
+    delete streams[name];
+  }
+  function unwatchAll() { Object.keys(streams).forEach(unwatch); }
+
+  // ---------------------------------------------------------------- Καταγραφή εγκατάστασης (ένδειξη 📱 στο FleetManager)
+  function registerInstall(force) {
+    var id = truckId();
+    if (!id || !baseUrl()) return;
+    var now = Date.now();
+    var last = parseInt(lsGet("installLastMs") || "0", 10);
+    if (!force && now - last < 10 * 60 * 1000) return;
+    var installedAt = parseInt(lsGet("installedAtMs") || "0", 10) || now;
+    fbPut("ownerAppInstalls/t" + id, { installedAtMs: installedAt, lastSeenMs: now, appVersion: APP_VERSION })
+      .then(function (ok) {
+        if (ok) { lsSet("installedAtMs", String(installedAt)); lsSet("installLastMs", String(now)); }
+      });
+  }
+
+  // ---------------------------------------------------------------- Πλοήγηση
+  var VIEWS = ["setup", "select", "home", "tasks", "report", "km"];
+  var current = "";
+  var currentTask = null;
+
+  function show(name) {
+    unwatchAll();
+    current = name;
+    VIEWS.forEach(function (v) { $("view-" + v).classList.toggle("hidden", v !== name); });
+    window.scrollTo(0, 0);
+    if (name === "setup") initSetup();
+    if (name === "select") initSelect();
+    if (name === "home") initHome();
+    if (name === "tasks") initTasks();
+    if (name === "km") { $("kmValue").value = ""; $("kmStatus").textContent = ""; }
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll("[data-go]"), function (el) {
+    el.addEventListener("click", function () { show(el.getAttribute("data-go")); });
+  });
+
+  // ---------------------------------------------------------------- Ρυθμίσεις
+  function initSetup() {
+    $("setupUrl").value = lsGet("fbUrl");
+    $("setupKey").value = lsGet("apiKey");
+    $("setupCancel").classList.toggle("hidden", !(baseUrl() && apiKey()));
+  }
+  $("setupSave").addEventListener("click", function () {
+    var u = $("setupUrl").value.trim().replace(/\/+$/, "");
+    var k = $("setupKey").value.trim();
+    if (!u || !k) { alert("Συμπλήρωσε και τα δύο πεδία."); return; }
+    lsSet("fbUrl", u); lsSet("apiKey", k);
+    token = null;
+    show(truckId() ? "home" : "select");
+  });
+  $("setupCancel").addEventListener("click", function () { show(truckId() ? "home" : "select"); });
+
+  // ---------------------------------------------------------------- Επιλογή οχήματος
+  function initSelect() { loadTrucks(); }
+  function loadTrucks() {
+    $("selectStatus").textContent = "Φόρτωση οχημάτων...";
+    fbGet("trucks").then(function (obj) {
+      var sel = $("truckSelect");
+      sel.innerHTML = "";
+      if (!obj) {
+        $("selectStatus").textContent = "Δεν βρέθηκε λίστα οχημάτων (έλεγξε τις ρυθμίσεις σύνδεσης ή το internet).";
+        return;
+      }
+      Object.keys(obj).forEach(function (key) {
+        if (key.charAt(0) !== "t" || !obj[key]) return;
+        var id = key.substring(1);
+        var o = document.createElement("option");
+        o.value = id;
+        o.textContent = obj[key].label || ("Όχημα #" + id);
+        sel.appendChild(o);
+      });
+      if (truckId()) sel.value = truckId();
+      $("selectStatus").textContent = sel.options.length ? "" : "Η λίστα οχημάτων είναι άδεια.";
+    });
+  }
+  $("truckRefresh").addEventListener("click", loadTrucks);
+  $("truckSettings").addEventListener("click", function () { show("setup"); });
+  $("truckLock").addEventListener("click", function () {
+    var sel = $("truckSelect");
+    if (!sel.value) { alert("Επίλεξε όχημα."); return; }
+    var prev = truckId();
+    lsSet("truckId", sel.value);
+    lsSet("truckLabel", sel.options[sel.selectedIndex].textContent);
+    if (prev && prev !== sel.value) {
+      fbDelete("ownerAppInstalls/t" + prev);
+      lsDel("installedAtMs"); lsDel("installLastMs");
+    }
+    registerInstall(true);
+    show("home");
+  });
+
+  // ---------------------------------------------------------------- Αρχική
+  function initHome() {
+    var id = truckId();
+    if (!id) { show("select"); return; }
+    $("homePlate").textContent = lsGet("truckLabel") || "Όχημα";
+    loadTruckInfo();
+    watch("truck", "trucks/t" + id, loadTruckInfo);
+    registerInstall(false);
+  }
+  function loadTruckInfo() {
+    fbGet("trucks/t" + truckId()).then(function (o) {
+      if (!o) return;
+      if (o.label) { $("homePlate").textContent = o.label; lsSet("truckLabel", o.label); }
+      var d = $("homeDriver");
+      d.textContent = o.driverName ? ("Υπεύθυνος: " + o.driverName) : "";
+      var img = $("homePhoto");
+      if (o.photoBase64) { img.src = "data:image/jpeg;base64," + o.photoBase64; img.style.display = "block"; }
+      else { img.style.display = "none"; }
+    });
+  }
+  $("homeTasks").addEventListener("click", function () { show("tasks"); });
+  $("homeKm").addEventListener("click", function () { show("km"); });
+  $("homeChange").addEventListener("click", function () { show("select"); });
+  $("homeSettings").addEventListener("click", function () { show("setup"); });
+
+  // ---------------------------------------------------------------- Εργασίες
+  var tasksCache = [];
+  function initTasks() {
+    loadTasks();
+    watch("tasks", "ownerTasks/t" + truckId(), loadTasks);
+  }
+  function loadTasks() {
+    $("tasksStatus").textContent = "Φόρτωση εργασιών...";
+    fbGet("ownerTasks/t" + truckId()).then(function (obj) {
+      var list = [];
+      if (obj) {
+        Object.keys(obj).forEach(function (key) {
+          if (key.charAt(0) !== "k" || !obj[key]) return;
+          var t = obj[key];
+          list.push({
+            id: parseInt(key.substring(1), 10),
+            desc: t.desc || "Εργασία",
+            basis: t.basis || "Time",
+            basisLabel: t.basisLabel || "",
+            statusText: t.statusText || "",
+            isDue: !!t.isDue
+          });
+        });
+      }
+      list.sort(function (a, b) { return (b.isDue ? 1 : 0) - (a.isDue ? 1 : 0); });
+      tasksCache = list;
+      renderTasks();
+      $("tasksStatus").textContent = list.length ? "Ενημερώθηκε." : "";
+    });
+  }
+  function renderTasks() {
+    var box = $("tasksList");
+    box.innerHTML = "";
+    $("tasksEmpty").style.display = tasksCache.length ? "none" : "block";
+    tasksCache.forEach(function (t) {
+      var card = document.createElement("div");
+      card.className = "card" + (t.isDue ? " due" : "");
+      var h = document.createElement("h2");
+      h.textContent = t.desc + (t.basisLabel ? "  [" + t.basisLabel + "]" : "");
+      var s = document.createElement("div");
+      s.className = t.isDue ? "due-text" : "muted";
+      s.textContent = (t.isDue ? "⚠ " : "") + t.statusText;
+      var b = document.createElement("button");
+      b.className = "btn";
+      b.textContent = "✓  Πραγματοποιήθηκε";
+      b.addEventListener("click", function () { openReport(t); });
+      card.appendChild(h); card.appendChild(s); card.appendChild(b);
+      box.appendChild(card);
+    });
+  }
+  $("tasksRefresh").addEventListener("click", loadTasks);
+
+  // ---------------------------------------------------------------- Αναφορά εργασίας
+  var photoDataB64 = null;
+
+  function openReport(task) {
+    show("report");
+    currentTask = task;
+    photoDataB64 = null;
+    $("reportDesc").textContent = task.desc;
+    $("reportStatus").textContent = "";
+    $("reportKm").value = "";
+    $("reportExpiry").value = "";
+    $("reportPhoto").value = "";
+    $("reportPreview").style.display = "none";
+    var isMileage = task.basis === "Mileage";
+    $("reportKmBlock").classList.toggle("hidden", !isMileage);
+    $("reportDocBlock").classList.toggle("hidden", isMileage);
+  }
+
+  // Συμπίεση φωτογραφίας (max 1280px, JPEG) ώστε να χωράει άνετα στο Firebase
+  function compressImage(file) {
+    return new Promise(function (resolve) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          var max = 1280, w = img.width, h = img.height;
+          if (Math.max(w, h) > max) { var r = max / Math.max(w, h); w = Math.round(w * r); h = Math.round(h * r); }
+          var c = document.createElement("canvas");
+          c.width = w; c.height = h;
+          c.getContext("2d").drawImage(img, 0, 0, w, h);
+          var data = c.toDataURL("image/jpeg", 0.7);
+          resolve({ preview: data, b64: data.substring(data.indexOf(",") + 1) });
+        };
+        img.onerror = function () { resolve(null); };
+        img.src = reader.result;
+      };
+      reader.onerror = function () { resolve(null); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  $("reportPhoto").addEventListener("change", function () {
+    var f = this.files && this.files[0];
+    if (!f) return;
+    $("reportStatus").textContent = "Επεξεργασία φωτογραφίας...";
+    compressImage(f).then(function (res) {
+      if (!res) { $("reportStatus").textContent = "Δεν διαβάστηκε η φωτογραφία."; return; }
+      photoDataB64 = res.b64;
+      var p = $("reportPreview");
+      p.src = res.preview; p.style.display = "block";
+      $("reportStatus").textContent = "";
+    });
+  });
+
+  $("reportSend").addEventListener("click", function () {
+    if (!currentTask) return;
+    var report = {};
+    if (currentTask.basis === "Mileage") {
+      var km = parseFloat($("reportKm").value);
+      if (!(km > 0)) { alert("Γράψε έγκυρα χιλιόμετρα."); return; }
+      report.kmAtReport = km;
+    } else {
+      if (photoDataB64) report.photoBase64 = photoDataB64;
+      var d = $("reportExpiry").value;           // yyyy-MM-dd
+      if (d) report.expiryDateIso = d;
+    }
+    report.reportedAtMs = Date.now();
+
+    var btn = $("reportSend");
+    btn.disabled = true;
+    $("reportStatus").textContent = "Αποστολή...";
+    fbPut("ownerTaskReports/t" + truckId() + "/k" + currentTask.id, report).then(function (ok) {
+      btn.disabled = false;
+      if (ok) {
+        alert("Στάλθηκε! Θα ενημερωθεί το πρόγραμμα σύντομα.");
+        show("tasks");
+      } else {
+        $("reportStatus").textContent = "Η αποστολή απέτυχε - έλεγξε το internet και ξαναπροσπάθησε.";
+      }
+    });
+  });
+
+  // ---------------------------------------------------------------- Χιλιόμετρα
+  $("kmSend").addEventListener("click", function () {
+    var km = parseInt($("kmValue").value, 10);
+    if (!(km > 0)) { alert("Γράψε έγκυρα χιλιόμετρα."); return; }
+    var btn = $("kmSend");
+    btn.disabled = true;
+    $("kmStatus").textContent = "Αποστολή...";
+    fbPut("ownerKmReports/t" + truckId(), { km: km, reportedAtMs: Date.now() }).then(function (ok) {
+      btn.disabled = false;
+      if (ok) { alert("Καταχωρήθηκε! Ευχαριστούμε."); show("home"); }
+      else { $("kmStatus").textContent = "Η αποστολή απέτυχε - έλεγξε το internet και ξαναπροσπάθησε."; }
+    });
+  });
+
+  // ---------------------------------------------------------------- Επιστροφή στην εφαρμογή (iPhone την "παγώνει" στο παρασκήνιο)
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState !== "visible") { unwatchAll(); return; }
+    if (current === "home" || current === "tasks") show(current);
+  });
+
+  // ---------------------------------------------------------------- Εκκίνηση
+  if (!baseUrl() || !apiKey()) show("setup");
+  else if (!truckId()) show("select");
+  else show("home");
+})();
+</script>
+</body>
+</html>
