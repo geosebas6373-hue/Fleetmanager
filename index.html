@@ -393,7 +393,9 @@
       list.sort(function (a, b) { return (b.isDue ? 1 : 0) - (a.isDue ? 1 : 0); });
       tasksCache = list;
       renderTasks();
-      $("tasksStatus").textContent = list.length ? "Ενημερώθηκε." : "";
+      if (obj === undefined) $("tasksStatus").textContent = "Αδυναμία ανάγνωσης από το Firebase (έλεγξε σύνδεση/Rules).";
+      else if (!list.length) $("tasksStatus").textContent = "Το FleetManager δεν έχει στείλει εργασίες για αυτό το όχημα (άνοιξέ το στον υπολογιστή και περίμενε 1-2 λεπτά).";
+      else $("tasksStatus").textContent = "Ενημερώθηκε.";
     });
   }
   function renderTasks() {
