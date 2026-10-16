@@ -252,18 +252,32 @@
   function unwatchAll() { Object.keys(streams).forEach(unwatch); }
 
   // ---------------------------------------------------------------- Καταγραφή εγκατάστασης (ένδειξη 📱 στο FleetManager)
-  function registerInstall(force) {
+  // Στέλνει "είμαι εδώ" (isOpen=true) ή "έφυγα" (isOpen=false). Την ώρα βάζει ο ίδιος ο server του Firebase.
+  // Το FleetManager δείχνει ΠΡΑΣΙΝΟ όταν η εφαρμογή είναι ανοιχτή και ΓΚΡΙ όταν είναι κλειστή.
+  function reportPresence(isOpen) {
     var id = truckId();
     if (!id || !baseUrl()) return;
-    var now = Date.now();
-    var last = parseInt(lsGet("installLastMs") || "0", 10);
-    if (!force && now - last < 10 * 60 * 1000) return;
-    var installedAt = parseInt(lsGet("installedAtMs") || "0", 10) || now;
-    fbPut("ownerAppInstalls/t" + id, { installedAtMs: installedAt, lastSeenMs: now, appVersion: APP_VERSION })
-      .then(function (ok) {
-        if (ok) { lsSet("installedAtMs", String(installedAt)); lsSet("installLastMs", String(now)); }
+    var installedAt = parseInt(lsGet("installedAtMs") || "0", 10) || Date.now();
+    lsSet("installedAtMs", String(installedAt));
+    urlFor("ownerAppInstalls/t" + id).then(function (u) {
+      return fetch(u, {
+        method: "PUT",
+        keepalive: true,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ installedAtMs: installedAt, lastSeenMs: { ".sv": "timestamp" }, appVersion: APP_VERSION, isOpen: !!isOpen })
       });
+    }).catch(function () {});
   }
+  function registerInstall() { reportPresence(true); }
+
+  var heartbeat = null;
+  function startHeartbeat() {
+    stopHeartbeat();
+    if (!truckId()) return;
+    reportPresence(true);
+    heartbeat = setInterval(function () { reportPresence(true); }, 60 * 1000);
+  }
+  function stopHeartbeat() { if (heartbeat) { clearInterval(heartbeat); heartbeat = null; } }
 
   // ---------------------------------------------------------------- Πλοήγηση
   var VIEWS = ["setup", "select", "home", "tasks", "report", "km"];
@@ -337,7 +351,7 @@
       fbDelete("ownerAppInstalls/t" + prev);
       lsDel("installedAtMs"); lsDel("installLastMs");
     }
-    registerInstall(true);
+    startHeartbeat();
     show("home");
   });
 
@@ -348,7 +362,7 @@
     $("homePlate").textContent = lsGet("truckLabel") || "Όχημα";
     loadTruckInfo();
     watch("truck", "trucks/t" + id, loadTruckInfo);
-    registerInstall(false);
+    if (!heartbeat) startHeartbeat();
   }
   function loadTruckInfo() {
     fbGet("trucks/t" + truckId()).then(function (o) {
@@ -518,9 +532,11 @@
 
   // ---------------------------------------------------------------- Επιστροφή στην εφαρμογή (iPhone την "παγώνει" στο παρασκήνιο)
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState !== "visible") { unwatchAll(); return; }
+    if (document.visibilityState !== "visible") { unwatchAll(); stopHeartbeat(); reportPresence(false); return; }
+    startHeartbeat();
     if (current === "home" || current === "tasks") show(current);
   });
+  window.addEventListener("pagehide", function () { stopHeartbeat(); reportPresence(false); });
 
   // ---------------------------------------------------------------- Εκκίνηση
   if (!baseUrl() || !apiKey()) show("setup");
